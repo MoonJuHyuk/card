@@ -9,7 +9,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const sum = a => a.reduce((s, r) => s + r.amount, 0);
 const groupSum = (rows, key) => { const m = new Map(); rows.forEach(r => { const k = key(r); const o = m.get(k) || {amount:0,count:0}; o.amount += r.amount; o.count++; m.set(k, o); }); return m; };
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.2';
 const LS = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
