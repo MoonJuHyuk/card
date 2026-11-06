@@ -1,6 +1,6 @@
 // 오프라인에서도 앱 화면이 열리도록 화면 파일을 저장해 둡니다.
 // 앱을 고치면 js/app.js 의 VERSION 과 이 VERSION 을 같이 올리세요.
-const VERSION = 'card-v0.1.0';
+const VERSION = 'card-v0.1.1';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
