@@ -11,7 +11,7 @@
  *   4) connectLink 실행 → 실행 로그의 링크를 폰·PC에서 한 번 열기
  */
 
-const APP_URL = 'https://moonjuhyuk.github.io/card-settlement/'; // GitHub Pages 주소
+const APP_URL = 'https://moonjuhyuk.github.io/card/'; // GitHub Pages 주소
 const WEB_APP_URL = '';   // 배포 후 …/exec 주소를 붙여넣으세요
 const SHEET_NAME = '내역';
 

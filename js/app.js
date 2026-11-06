@@ -9,7 +9,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const sum = a => a.reduce((s, r) => s + r.amount, 0);
 const groupSum = (rows, key) => { const m = new Map(); rows.forEach(r => { const k = key(r); const o = m.get(k) || {amount:0,count:0}; o.amount += r.amount; o.count++; m.set(k, o); }); return m; };
 
-const VERSION = '0.1.3';
+const VERSION = '0.2.0';
 const LS = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -79,7 +79,7 @@ function showConnect() {
   $('app').innerHTML = `<div class="empty"><h2>연결 링크로 열어 주세요</h2>
     <p>카드 내역은 구글시트에 있고, 연결 링크를 한 번 열면 이 기기가 연결됩니다. 링크는 시트를 관리하는 사람에게 받으세요.</p>
     <p>링크를 복사해 두었다면 아래에 붙여넣어도 됩니다.</p>
-    <textarea id="c-input" placeholder="https://moonjuhyuk.github.io/card-settlement/#connect=..."></textarea>
+    <textarea id="c-input" placeholder="https://moonjuhyuk.github.io/card/#connect=..."></textarea>
     <button class="btn" id="c-go">연결하기</button></div>`;
   $('c-go').onclick = () => { const c = parseConnect($('c-input').value); if (!c) { alert('연결 링크가 올바르지 않습니다.'); return; } LS.set('card.conn', c); load(); };
 }
