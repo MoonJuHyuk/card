@@ -31,7 +31,8 @@
     <ul>
       <li>10월까지는 카드 명세서에 청구된 금액(할인·취소 반영), 그 이후는 아직 청구 전인 승인 금액입니다.</li>
       <li>교통카드(버스·지하철·경전철)와 고속도로 통행료는 명세서에 월말 날짜로 한꺼번에 들어옵니다.</li>
-      <li>항목은 가맹점 이름으로 자동 분류했습니다. 틀린 건 구글시트 '내역' 탭의 항목 칸을 고치면 다음에 열 때 반영됩니다.</li>
+      <li>항목은 가맹점 이름으로 자동 분류했습니다. 틀린 건 이용내역에서 그 줄을 누르면 항목·금액 등을 고치거나 지울 수 있습니다.</li>
+      <li>생활비에서는 여행, 자동차 구매, 결혼식 항목을 뺍니다.</li>
       <li>처음 달과 이번 달은 한 달 전체가 아니라 전월 대비가 실제와 다를 수 있습니다.</li>
     </ul>
   </details>
@@ -41,15 +42,16 @@
 
 <div class="modal" id="modal">
   <div class="sheet">
-    <h3>지출 직접 추가</h3>
+    <h3 id="f-title">지출 직접 추가</h3>
     <label>날짜</label><input type="date" id="f-date">
     <label>내용</label><input id="f-merchant" placeholder="예: 시장 장보기(현금)">
     <label>금액(원)</label><input id="f-amount" inputmode="numeric" placeholder="예: 25000">
     <label>항목</label><select id="f-cat"></select>
+    <input id="f-catnew" class="hide" placeholder="새 항목 이름 (예: 경조사)" style="margin-top:6px">
     <label>누가</label><select id="f-user"></select>
     <label>결제수단</label><input id="f-card" value="현금">
     <label>메모</label><input id="f-memo">
-    <div class="btns"><button id="f-cancel">취소</button><button class="p" id="f-save">저장</button></div>
+    <div class="btns"><button id="f-del" class="danger hide">삭제</button><button id="f-cancel">취소</button><button class="p" id="f-save">저장</button></div>
   </div>
 </div>
 

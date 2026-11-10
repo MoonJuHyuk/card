@@ -58,6 +58,8 @@ function doPost(e) {
     switch (req.action) {
       case 'list': return json_({ ok: true, rows: list_() });
       case 'add': return json_({ ok: true, row: add_(req.entry || {}) });
+      case 'update': return json_({ ok: true, row: update_(req.row, req.entry || {}, req.orig || {}) });
+      case 'delete': return json_({ ok: true, deleted: delete_(req.row, req.orig || {}) });
       default: return json_({ ok: false, error: 'unknown action' });
     }
   } catch (err) {
@@ -76,14 +78,56 @@ function list_() {
   const sh = sheet_();
   const last = sh.getLastRow();
   if (last < 2) return [];
-  const tz = Session.getScriptTimeZone();
   return sh.getRange(2, 1, last - 1, FIELDS.length).getValues()
-    .filter(r => r[0] !== '' && r[3] !== '')
-    .map(r => [
-      r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'yyyy-MM-dd') : String(r[0]).trim(),
-      String(r[1]), String(r[2] || '기타'), Number(String(r[3]).replace(/,/g, '')) || 0,
-      String(r[4] || ''), String(r[5] || ''), String(r[6] || ''), String(r[7] || ''),
-    ]);
+    .map((r, i) => fmtRow_(r).concat([i + 2]))   // 마지막 칸 = 시트 행 번호 (수정·삭제용)
+    .filter(r => r[0] !== '' && r[3] !== 0);
+}
+
+function fmtRow_(r) {
+  const tz = Session.getScriptTimeZone();
+  return [
+    r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'yyyy-MM-dd') : String(r[0]).trim(),
+    String(r[1]), String(r[2] || '기타'), Number(String(r[3]).replace(/,/g, '')) || 0,
+    String(r[4] || ''), String(r[5] || ''), String(r[6] || ''), String(r[7] || ''),
+  ];
+}
+
+/** 앱이 본 줄과 지금 시트의 그 줄이 같은지 확인 (그 사이 줄이 밀렸으면 거부) */
+function checkRow_(sh, row, orig) {
+  row = Number(row);
+  if (!row || row < 2 || row > sh.getLastRow()) throw new Error('내역을 찾지 못했습니다. 새로 불러온 뒤 다시 해 주세요.');
+  const curr = fmtRow_(sh.getRange(row, 1, 1, FIELDS.length).getValues()[0]);
+  if (curr[0] !== orig.date || curr[1] !== orig.merchant || curr[3] !== Number(orig.amount)) {
+    throw new Error('그 사이 시트가 바뀌었습니다. 새로 불러온 뒤 다시 해 주세요.');
+  }
+  return row;
+}
+
+function update_(row, e, orig) {
+  const amt = Number(String(e.amount || '').replace(/,/g, ''));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date || '') || !e.merchant || !amt) throw new Error('날짜, 내용, 금액을 확인해 주세요.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = sheet_();
+    row = checkRow_(sh, row, orig);
+    const status = sh.getRange(row, 7).getValue();   // 상태 칸은 그대로 둠
+    const vals = [e.date, String(e.merchant).slice(0, 100), String(e.category || '기타').slice(0, 30), amt,
+                  e.user || '', e.card || '', status, String(e.memo || '').slice(0, 200)];
+    sh.getRange(row, 1, 1, FIELDS.length).setValues([vals]);
+    return vals;
+  } finally { lock.releaseLock(); }
+}
+
+function delete_(row, orig) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = sheet_();
+    row = checkRow_(sh, row, orig);
+    sh.deleteRow(row);
+    return row;
+  } finally { lock.releaseLock(); }
 }
 
 function add_(e) {

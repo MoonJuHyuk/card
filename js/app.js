@@ -1,5 +1,5 @@
 'use strict';
-const ONE_OFF = c => c === '자동차 구매' || c.indexOf('여행') >= 0;
+const ONE_OFF = c => c === '자동차 구매' || c === '결혼식' || c.indexOf('여행') >= 0;
 let ALL = [], person = '', cur = '', q = '', catF = '';
 const $ = id => document.getElementById(id);
 const won = v => Math.round(v).toLocaleString('ko-KR') + '원';
@@ -9,7 +9,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const sum = a => a.reduce((s, r) => s + r.amount, 0);
 const groupSum = (rows, key) => { const m = new Map(); rows.forEach(r => { const k = key(r); const o = m.get(k) || {amount:0,count:0}; o.amount += r.amount; o.count++; m.set(k, o); }); return m; };
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const LS = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -51,7 +51,7 @@ async function call(action, payload = {}, timeoutMs = 30000) {
 }
 
 function setRows(rows) {
-  ALL = rows.map(r => ({date:r[0], merchant:r[1], category:r[2], amount:Number(r[3]) || 0, user:r[4], card:r[5], status:r[6], memo:r[7]}))
+  ALL = rows.map(r => ({date:r[0], merchant:r[1], category:r[2], amount:Number(r[3]) || 0, user:r[4], card:r[5], status:r[6], memo:r[7], row:Number(r[8]) || 0}))
             .sort((a, b) => a.date.localeCompare(b.date));
 }
 function setStatus(t) { $('status').textContent = t || ''; }
@@ -117,7 +117,7 @@ function overview(P, months) {
   <div class="tiles">
     ${tile('총 사용액', man(total), '전체 기간')}
     ${tile('월평균 · ' + fullLbl, man(avg), '처음·이번 달 제외')}
-    ${tile('생활비 월평균', man(avgLife), '여행·자동차 구매 제외')}
+    ${tile('생활비 월평균', man(avgLife), '여행·자동차 구매·결혼식 제외')}
     ${tile('결제 건수', P.length.toLocaleString() + '건', '')}
   </div>
   <div class="grid">
@@ -146,7 +146,7 @@ function monthView(P, months) {
   <div class="tiles">
     ${tile(mLabel(cur) + ' 사용액', man(t), R.length ? fmtD(R[0].date) + ' ~ ' + fmtD(R[R.length-1].date) : '')}
     ${tile('전월 대비', prevM ? (d >= 0 ? '+' : '−') + man(Math.abs(d)) : '첫 달', prevM ? mLabel(prevM) + ' ' + man(pt) : '', prevM ? (d > 0 ? 'up' : 'down') : '')}
-    ${tile('생활비', man(lifeT), '여행·자동차 구매 제외')}
+    ${tile('생활비', man(lifeT), '여행·자동차 구매·결혼식 제외')}
     ${tile('결제 건수', R.length + '건', cats[0] ? '가장 큰 항목: ' + cats[0].key : '')}
   </div>
   <div class="grid">
@@ -191,7 +191,7 @@ function pivot(P, months, cats) {
 
 function table(rows, withMore) {
   return `<table><thead><tr><th>날짜</th><th>가맹점</th><th class="hidem">항목</th>${person ? '' : '<th class="hidem">누가</th>'}<th class="r">금액</th></tr></thead><tbody>
-  ${rows.map(r => `<tr><td>${r.date.slice(5).replace('-', '.')}</td><td>${esc(r.merchant)}${r.memo ? ' <span class="pill">' + esc(r.memo) + '</span>' : ''}${r.status && r.status !== '청구' ? ' <span class="pill">' + esc(r.status) + '</span>' : ''}</td><td class="hidem">${esc(r.category)}</td>${person ? '' : '<td class="hidem">' + esc(r.user) + '</td>'}<td class="r">${won(r.amount)}</td></tr>`).join('')}
+  ${rows.map(r => `<tr${r.row ? ' data-row="' + r.row + '" class="edit"' : ''}><td>${r.date.slice(5).replace('-', '.')}</td><td>${esc(r.merchant)}${r.memo ? ' <span class="pill">' + esc(r.memo) + '</span>' : ''}${r.status && r.status !== '청구' ? ' <span class="pill">' + esc(r.status) + '</span>' : ''}</td><td class="hidem">${esc(r.category)}</td>${person ? '' : '<td class="hidem">' + esc(r.user) + '</td>'}<td class="r">${won(r.amount)}</td></tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -209,12 +209,13 @@ function listTable(R) {
 
 function bind() {
   const P = rowsP(), R = cur ? P.filter(r => r.date.slice(0, 7) === cur) : P;
-  const refresh = () => { $('listBody').innerHTML = listTable(R); };
+  const refresh = () => { $('listBody').innerHTML = listTable(R); bindRows(); };
   $('q').oninput = e => { q = e.target.value.trim(); refresh(); };
   $('catF').onchange = e => { catF = e.target.value; refresh(); };
   document.querySelectorAll('[data-month]').forEach(el => el.onclick = () => { cur = el.dataset.month; history.replaceState(null, '', '#m' + cur); render(); window.scrollTo({top:0}); });
-  document.querySelectorAll('[data-day]').forEach(el => el.onclick = () => { q = ''; catF = ''; $('q').value = ''; $('catF').value = ''; const d = el.dataset.day; $('listBody').innerHTML = `<p class="note">${fmtD(d)} · <a href="#" id="clr">전체 보기</a></p>` + table(R.filter(r => r.date === d).reverse()); $('clr').onclick = ev => { ev.preventDefault(); refresh(); }; $('list').scrollIntoView({behavior:'smooth'}); });
+  document.querySelectorAll('[data-day]').forEach(el => el.onclick = () => { q = ''; catF = ''; $('q').value = ''; $('catF').value = ''; const d = el.dataset.day; $('listBody').innerHTML = `<p class="note">${fmtD(d)} · <a href="#" id="clr">전체 보기</a></p>` + table(R.filter(r => r.date === d).reverse()); bindRows(); $('clr').onclick = ev => { ev.preventDefault(); refresh(); }; $('list').scrollIntoView({behavior:'smooth'}); });
   document.querySelectorAll('[data-cat]').forEach(el => el.onclick = () => { catF = el.dataset.cat; $('catF').value = catF; refresh(); $('list').scrollIntoView({behavior:'smooth'}); });
+  bindRows();
   const tip = $('tip');
   document.querySelectorAll('[data-tip]').forEach(el => {
     el.onmousemove = e => { const [a, b] = el.dataset.tip.split('|'); tip.innerHTML = `<div style="color:var(--muted)">${a}</div><div>${b}</div>`; tip.style.display = 'block'; tip.style.left = Math.min(innerWidth - tip.offsetWidth - 8, e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 48) + 'px'; };
@@ -222,21 +223,55 @@ function bind() {
   });
 }
 
-// 직접 추가
-$('fab').onclick = () => {
+// 직접 추가 · 내역 고치기 (같은 창을 같이 씀)
+let editing = null;   // 고치는 중인 내역 (null 이면 새로 추가)
+function bindRows() {
+  document.querySelectorAll('tr[data-row]').forEach(tr => tr.onclick = () => {
+    const r = ALL.find(x => x.row === Number(tr.dataset.row));
+    if (r) openForm(r);
+  });
+}
+function fillCats(sel) {
   const cats = [...new Set(ALL.map(r => r.category))].sort();
-  $('f-cat').innerHTML = cats.map(c => `<option>${esc(c)}</option>`).join('');
-  const users = [...new Set(ALL.map(r => r.user).filter(Boolean))];
-  $('f-user').innerHTML = users.map(u => `<option ${u === person ? 'selected' : ''}>${esc(u)}</option>`).join('');
-  $('f-date').value = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  if (sel && cats.indexOf(sel) < 0) cats.push(sel);
+  $('f-cat').innerHTML = cats.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">＋ 새 항목 만들기</option>';
+  $('f-catnew').value = ''; $('f-catnew').classList.add('hide');
+}
+function openForm(r) {
+  editing = r || null;
+  fillCats(r ? r.category : '');
+  const users = [...new Set(ALL.map(x => x.user).filter(Boolean))];
+  const u = r ? r.user : person;
+  $('f-user').innerHTML = users.map(x => `<option ${x === u ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  $('f-title').textContent = r ? '내역 고치기' : '지출 직접 추가';
+  $('f-date').value = r ? r.date : new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  $('f-merchant').value = r ? r.merchant : '';
+  $('f-amount').value = r ? r.amount : '';
+  $('f-card').value = r ? r.card : '현금';
+  $('f-memo').value = r ? r.memo : '';
+  $('f-del').classList.toggle('hide', !r);
   $('modal').classList.add('on');
-};
+}
+$('f-cat').onchange = () => { const nw = $('f-cat').value === '__new'; $('f-catnew').classList.toggle('hide', !nw); if (nw) $('f-catnew').focus(); };
+$('fab').onclick = () => openForm(null);
 $('f-cancel').onclick = () => $('modal').classList.remove('on');
+function busy(btn, on, label) { btn.disabled = on; btn.textContent = label; }
 $('f-save').onclick = () => {
-  const e = {date: $('f-date').value, merchant: $('f-merchant').value.trim(), amount: $('f-amount').value, category: $('f-cat').value, user: $('f-user').value, card: $('f-card').value.trim(), memo: $('f-memo').value.trim()};
-  $('f-save').disabled = true; $('f-save').textContent = '저장 중…';
-  call('add', { entry: e }).then(() => { $('modal').classList.remove('on'); $('f-merchant').value = ''; $('f-amount').value = ''; $('f-memo').value = ''; $('f-save').disabled = false; $('f-save').textContent = '저장'; load(); })
-    .catch(err => { alert('저장하지 못했습니다: ' + err.message); $('f-save').disabled = false; $('f-save').textContent = '저장'; });
+  let cat = $('f-cat').value;
+  if (cat === '__new') { cat = $('f-catnew').value.trim(); if (!cat) { alert('새 항목 이름을 써 주세요.'); return; } }
+  const e = {date: $('f-date').value, merchant: $('f-merchant').value.trim(), amount: $('f-amount').value, category: cat, user: $('f-user').value, card: $('f-card').value.trim(), memo: $('f-memo').value.trim()};
+  const req = editing ? call('update', { row: editing.row, entry: e, orig: {date: editing.date, merchant: editing.merchant, amount: editing.amount} })
+                      : call('add', { entry: e });
+  busy($('f-save'), true, '저장 중…');
+  req.then(() => { $('modal').classList.remove('on'); busy($('f-save'), false, '저장'); load(); })
+     .catch(err => { alert('저장하지 못했습니다: ' + err.message); busy($('f-save'), false, '저장'); });
+};
+$('f-del').onclick = () => {
+  if (!editing || !confirm(`'${editing.merchant}' ${won(editing.amount)} 내역을 지울까요? 구글시트에서도 지워집니다.`)) return;
+  busy($('f-del'), true, '지우는 중…');
+  call('delete', { row: editing.row, orig: {date: editing.date, merchant: editing.merchant, amount: editing.amount} })
+    .then(() => { $('modal').classList.remove('on'); busy($('f-del'), false, '삭제'); load(); })
+    .catch(err => { alert('지우지 못했습니다: ' + err.message); busy($('f-del'), false, '삭제'); });
 };
 // 설정
 $('btn-settings').onclick = () => {
