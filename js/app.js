@@ -1,5 +1,7 @@
 'use strict';
 const ONE_OFF = c => c === '자동차 구매' || c === '결혼식' || c.indexOf('여행') >= 0;
+const FIXED_CATS = ['보험', '주거·관리비', '회비'];   // 고정비로 보는 항목
+const FIXED = c => FIXED_CATS.indexOf(c) >= 0;
 let ALL = [], person = '', cur = '', q = '', catF = '';
 const $ = id => document.getElementById(id);
 const won = v => Math.round(v).toLocaleString('ko-KR') + '원';
@@ -9,7 +11,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const sum = a => a.reduce((s, r) => s + r.amount, 0);
 const groupSum = (rows, key) => { const m = new Map(); rows.forEach(r => { const k = key(r); const o = m.get(k) || {amount:0,count:0}; o.amount += r.amount; o.count++; m.set(k, o); }); return m; };
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const LS = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -108,6 +110,7 @@ function overview(P, months) {
   const fullRows = P.filter(r => full.indexOf(r.date.slice(0, 7)) >= 0);
   const n = Math.max(1, full.length);
   const avg = sum(fullRows) / n, avgLife = sum(fullRows.filter(r => !ONE_OFF(r.category))) / n;
+  const avgFixed = sum(fullRows.filter(r => FIXED(r.category))) / n;
   const fullLbl = full.length ? mLabel(full[0]) + '~' + mLabel(full[full.length - 1]) : '';
   const bym = groupSum(P, r => r.date.slice(0, 7));
   const mrows = months.map(m => ({key:m, amount:(bym.get(m) || {amount:0}).amount}));
@@ -118,6 +121,7 @@ function overview(P, months) {
     ${tile('총 사용액', man(total), '전체 기간')}
     ${tile('월평균 · ' + fullLbl, man(avg), '처음·이번 달 제외')}
     ${tile('생활비 월평균', man(avgLife), '여행·자동차 구매·결혼식 제외')}
+    ${tile('고정비 월평균', man(avgFixed), '보험·관리비·회비 · 생활비에 포함')}
     ${tile('결제 건수', P.length.toLocaleString() + '건', '')}
   </div>
   <div class="grid">
@@ -126,6 +130,7 @@ function overview(P, months) {
   </div>
   <div class="card" style="margin-bottom:12px"><h2>월별 항목 비교</h2><p class="note">단위 만원</p><div class="wide">${pivot(P, months, cats)}</div></div>
   <div class="card" style="margin-bottom:12px"><h2>큰 지출 10건</h2><p class="note">전체 기간</p>${table(top, false)}</div>
+  ${fixedCard(P, months, null)}
   ${listCard(P)}`;
 }
 
@@ -142,11 +147,12 @@ function monthView(P, months) {
   const days = Array.from({length: dim}, (_, k) => { const ds = cur + '-' + String(k + 1).padStart(2, '0'); return {key: ds, amount: (byd.get(ds) || {amount:0}).amount}; });
   const merch = [...groupSum(R, r => r.merchant)].map(([k, o]) => ({key:k, ...o, category:(R.find(r => r.merchant === k) || {}).category})).sort((a, b) => b.amount - a.amount).slice(0, 10);
   const lifeT = sum(R.filter(r => !ONE_OFF(r.category)));
+  const fixedT = sum(R.filter(r => FIXED(r.category)));
   return `
   <div class="tiles">
     ${tile(mLabel(cur) + ' 사용액', man(t), R.length ? fmtD(R[0].date) + ' ~ ' + fmtD(R[R.length-1].date) : '')}
     ${tile('전월 대비', prevM ? (d >= 0 ? '+' : '−') + man(Math.abs(d)) : '첫 달', prevM ? mLabel(prevM) + ' ' + man(pt) : '', prevM ? (d > 0 ? 'up' : 'down') : '')}
-    ${tile('생활비', man(lifeT), '여행·자동차 구매·결혼식 제외')}
+    ${tile('생활비', man(lifeT), '고정비 ' + man(fixedT) + ' + 그 외 ' + man(lifeT - fixedT))}
     ${tile('결제 건수', R.length + '건', cats[0] ? '가장 큰 항목: ' + cats[0].key : '')}
   </div>
   <div class="grid">
@@ -157,6 +163,7 @@ function monthView(P, months) {
     <table><thead><tr><th>가맹점</th><th class="hidem">항목</th><th class="r">건수</th><th class="r">금액</th></tr></thead><tbody>
     ${merch.map(r => `<tr><td>${esc(r.key)}</td><td class="hidem">${esc(r.category)}</td><td class="r">${r.count}건</td><td class="r">${won(r.amount)}</td></tr>`).join('')}
     </tbody></table></div>
+  ${fixedCard(P, months, cur)}
   ${listCard(R)}`;
 }
 
@@ -193,6 +200,29 @@ function table(rows, withMore) {
   return `<table><thead><tr><th>날짜</th><th>가맹점</th><th class="hidem">항목</th>${person ? '' : '<th class="hidem">누가</th>'}<th class="r">금액</th></tr></thead><tbody>
   ${rows.map(r => `<tr${r.row ? ' data-row="' + r.row + '" class="edit"' : ''}><td>${r.date.slice(5).replace('-', '.')}</td><td>${esc(r.merchant)}${r.memo ? ' <span class="pill">' + esc(r.memo) + '</span>' : ''}${r.status && r.status !== '청구' ? ' <span class="pill">' + esc(r.status) + '</span>' : ''}</td><td class="hidem">${esc(r.category)}</td>${person ? '' : '<td class="hidem">' + esc(r.user) + '</td>'}<td class="r">${won(r.amount)}</td></tr>`).join('')}
   </tbody></table>`;
+}
+
+// 고정비 카드: 전체 화면은 월평균, 월별 화면은 그달 금액 (마지막 달이면 '아직 안 나감' 표시)
+function fixedCard(P, months, m) {
+  const F = P.filter(r => FIXED(r.category));
+  if (!F.length) return '';
+  const full = months.slice(1, -1), n = Math.max(1, full.length);
+  const lastM = months[months.length - 1], prevM = m ? months[months.indexOf(m) - 1] : months[months.length - 2];
+  const items = [...new Set(F.map(r => r.merchant))].map(k => {
+    const rs = F.filter(r => r.merchant === k);
+    const inM = mm => sum(rs.filter(r => r.date.slice(0, 7) === mm));
+    return { key: k, category: rs[rs.length - 1].category, last: rs[rs.length - 1].date,
+             avg: sum(rs.filter(r => full.indexOf(r.date.slice(0, 7)) >= 0)) / n,
+             prev: prevM ? inM(prevM) : 0, cur: m ? inM(m) : 0 };
+  }).filter(o => m ? (o.cur || o.prev) : o.avg).sort((a, b) => FIXED_CATS.indexOf(a.category) - FIXED_CATS.indexOf(b.category) || b.avg - a.avg);
+  const pending = o => m === lastM && !o.cur && o.prev;
+  const total = m ? sum(F.filter(r => r.date.slice(0, 7) === m)) : sum(F.filter(r => full.indexOf(r.date.slice(0, 7)) >= 0)) / n;
+  const waiting = m ? items.filter(pending) : [];
+  return `<div class="card" style="margin-bottom:12px"><h2>고정비 ${m ? mLabel(m) + ' ' + won(total) : '월평균 ' + won(total)}</h2>
+    <p class="note">보험·주거·관리비·회비 항목${waiting.length ? ` · 아직 안 나간 것 ${waiting.length}건 (지난달 ${won(sum(waiting.map(o => ({amount: o.prev}))))})` : ''}</p>
+    <table><thead><tr><th>내용</th><th class="hidem">항목</th>${m ? '' : '<th class="r">월평균</th>'}<th class="r">${prevM ? mLabel(prevM) : '지난달'}</th>${m ? `<th class="r">${mLabel(m)}</th>` : '<th class="r hidem">최근 결제</th>'}</tr></thead><tbody>
+    ${items.map(o => `<tr><td>${esc(o.key)}</td><td class="hidem">${esc(o.category)}</td>${m ? '' : `<td class="r">${won(o.avg)}</td>`}<td class="r">${o.prev ? won(o.prev) : '·'}</td>${m ? `<td class="r">${o.cur ? won(o.cur) : pending(o) ? '<span class="pill">아직 안 나감</span>' : '·'}</td>` : `<td class="r hidem">${fmtD(o.last)}</td>`}</tr>`).join('')}
+    </tbody></table></div>`;
 }
 
 function listCard(R) {
