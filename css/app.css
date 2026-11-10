@@ -78,3 +78,4 @@ details li{margin:4px 0}
 tr.edit{cursor:pointer}
 tr.edit:hover td{background:var(--bg)}
 .sheet .btns button.danger{flex:0 0 auto;color:var(--up)}
+tr.refund td{color:var(--muted);text-decoration:line-through}

@@ -2,6 +2,8 @@
 const ONE_OFF = c => c === '자동차 구매' || c === '결혼식' || c.indexOf('여행') >= 0;
 const FIXED_CATS = ['보험', '주거·관리비', '회비'];   // 고정비로 보는 항목
 const FIXED = c => FIXED_CATS.indexOf(c) >= 0;
+const REFUND_CAT = '돌려받음';   // 대신 냈다가 돌려받은 돈: 모든 합계·차트에서 빼고 목록에만 회색으로 표시
+let REFUND = [];
 let ALL = [], person = '', cur = '', q = '', catF = '';
 const $ = id => document.getElementById(id);
 const won = v => Math.round(v).toLocaleString('ko-KR') + '원';
@@ -11,7 +13,7 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>'
 const sum = a => a.reduce((s, r) => s + r.amount, 0);
 const groupSum = (rows, key) => { const m = new Map(); rows.forEach(r => { const k = key(r); const o = m.get(k) || {amount:0,count:0}; o.amount += r.amount; o.count++; m.set(k, o); }); return m; };
 
-const VERSION = '0.4.0';
+const VERSION = '0.4.1';
 const LS = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
@@ -55,6 +57,8 @@ async function call(action, payload = {}, timeoutMs = 30000) {
 function setRows(rows) {
   ALL = rows.map(r => ({date:r[0], merchant:r[1], category:r[2], amount:Number(r[3]) || 0, user:r[4], card:r[5], status:r[6], memo:r[7], row:Number(r[8]) || 0}))
             .sort((a, b) => a.date.localeCompare(b.date));
+  REFUND = ALL.filter(r => r.category === REFUND_CAT);
+  ALL = ALL.filter(r => r.category !== REFUND_CAT);
 }
 function setStatus(t) { $('status').textContent = t || ''; }
 
@@ -198,7 +202,7 @@ function pivot(P, months, cats) {
 
 function table(rows, withMore) {
   return `<table><thead><tr><th>날짜</th><th>가맹점</th><th class="hidem">항목</th>${person ? '' : '<th class="hidem">누가</th>'}<th class="r">금액</th></tr></thead><tbody>
-  ${rows.map(r => `<tr${r.row ? ' data-row="' + r.row + '" class="edit"' : ''}><td>${r.date.slice(5).replace('-', '.')}</td><td>${esc(r.merchant)}${r.memo ? ' <span class="pill">' + esc(r.memo) + '</span>' : ''}${r.status && r.status !== '청구' ? ' <span class="pill">' + esc(r.status) + '</span>' : ''}</td><td class="hidem">${esc(r.category)}</td>${person ? '' : '<td class="hidem">' + esc(r.user) + '</td>'}<td class="r">${won(r.amount)}</td></tr>`).join('')}
+  ${rows.map(r => `<tr${r.row ? ' data-row="' + r.row + '" class="edit' + (r.category === REFUND_CAT ? ' refund' : '') + '"' : ''}><td>${r.date.slice(5).replace('-', '.')}</td><td>${esc(r.merchant)}${r.memo ? ' <span class="pill">' + esc(r.memo) + '</span>' : ''}${r.status && r.status !== '청구' ? ' <span class="pill">' + esc(r.status) + '</span>' : ''}</td><td class="hidem">${esc(r.category)}</td>${person ? '' : '<td class="hidem">' + esc(r.user) + '</td>'}<td class="r">${won(r.amount)}</td></tr>`).join('')}
   </tbody></table>`;
 }
 
@@ -233,8 +237,11 @@ function listCard(R) {
     <div class="scroll" id="listBody">${listTable(R)}</div></div>`;
 }
 function listTable(R) {
-  const rows = R.filter(r => (!catF || r.category === catF) && (!q || r.merchant.toLowerCase().indexOf(q.toLowerCase()) >= 0)).slice().reverse();
-  return `<p class="note">${rows.length}건 · ${won(sum(rows))}</p>` + table(rows);
+  const ok = r => (!catF || r.category === catF) && (!q || r.merchant.toLowerCase().indexOf(q.toLowerCase()) >= 0);
+  const rows = R.filter(ok);
+  const ref = REFUND.filter(r => (!person || r.user === person) && (!cur || r.date.slice(0, 7) === cur) && ok(r));
+  const all = rows.concat(ref).sort((a, b) => a.date.localeCompare(b.date)).reverse();
+  return `<p class="note">${rows.length}건 · ${won(sum(rows))}${ref.length ? ` · 돌려받은 ${ref.length}건(${won(sum(ref))})은 합계에서 뺌` : ''}</p>` + table(all);
 }
 
 function bind() {
@@ -257,12 +264,12 @@ function bind() {
 let editing = null;   // 고치는 중인 내역 (null 이면 새로 추가)
 function bindRows() {
   document.querySelectorAll('tr[data-row]').forEach(tr => tr.onclick = () => {
-    const r = ALL.find(x => x.row === Number(tr.dataset.row));
+    const r = ALL.concat(REFUND).find(x => x.row === Number(tr.dataset.row));
     if (r) openForm(r);
   });
 }
 function fillCats(sel) {
-  const cats = [...new Set(ALL.map(r => r.category))].sort();
+  const cats = [...new Set(ALL.map(r => r.category))].sort().concat([REFUND_CAT]);
   if (sel && cats.indexOf(sel) < 0) cats.push(sel);
   $('f-cat').innerHTML = cats.map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('') + '<option value="__new">＋ 새 항목 만들기</option>';
   $('f-catnew').value = ''; $('f-catnew').classList.add('hide');
